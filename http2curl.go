@@ -37,7 +37,7 @@ func bashEscape(str string) string {
 func (nopCloser) Close() error { return nil }
 
 // GetCurlCommand returns a CurlCommand corresponding to an http.Request
-func GetCurlCommand(req *http.Request) (*CurlCommand, error) {
+func GetCurlCommand(req *http.Request, c *http.Client) (*CurlCommand, error) {
 	command := CurlCommand{}
 
 	command.append("curl")
@@ -65,7 +65,30 @@ func GetCurlCommand(req *http.Request) (*CurlCommand, error) {
 		command.append("-H", bashEscape(fmt.Sprintf("%s: %s", k, strings.Join(req.Header[k], " "))))
 	}
 
+	cookies := make([]*http.Cookie, 0)
+
+	// Cookies from request
+	for _, cookie := range req.Cookies() {
+		cookies = append(cookies, cookie)
+	}
+	// Cookies from jar
+
+	if c != nil && c.Jar != nil {
+		fmt.Println(c.Jar.Cookies(req.URL))
+		cookies = append(cookies, c.Jar.Cookies(req.URL)...)
+	}
+
+	command.append("-H", bashEscape(cookieStringFromCookies(cookies)))
 	command.append(bashEscape(req.URL.String()))
 
 	return &command, nil
+}
+
+func cookieStringFromCookies(cookies []*http.Cookie) string {
+	cookieStrings := []string{}
+	for _, v := range cookies {
+		cookieStrings = append(cookieStrings, v.Name+"="+v.Value)
+	}
+	cookieString := "Cookie: "+strings.Join(cookieStrings, "; ")
+	return cookieString
 }
